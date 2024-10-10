@@ -2,7 +2,7 @@
 File: reader.py
 Author: Djazy Faradj
 Created: 09-10-2024
-Last modified: 09-10-2024
+Last modified: 10-10-2024
 Description: Reader.py is a script which takes in an image of a qr code (for now, unaltered, 'perfect' qr image), manipulates it a little as to remove unwanted borders.
 It then reads each pixel of this code and automatically adapts to varying image sizes as it first calls a funciton CalculateCellSize() in which it will determine the size of
 each cell inside that qr code image. From there, it will read the qr code line by line and will then be processed by the QrRead() function.
@@ -18,10 +18,11 @@ from constant import *
 qrCodeFolder = "sample_qr_codes/"
 
 class QrCode:
-    version = 0.0 # FindVersion() will automatically determine and find the qrCode's version (1(21x21), 2(25x25), 3(29x29), 4(33x33), 10(57x57), 25(117x117), 40(177x177))
-    cell_size = 0.0 # Same than version except find cell size in pixels
-    cell_width = 0
-    cell_height = 0
+    version = None # FindVersion() will automatically determine and find the qrCode's version (1(21x21), 2(25x25), 3(29x29), 4(33x33), 10(57x57), 25(117x117), 40(177x177))
+    cell_size = None # Same than version except find cell size in pixels
+    cell_width = None
+    cell_height = None
+    qrData = None
 
     def __init__(self, imData): # QrCode class constructor
         self.imData = imData
@@ -31,9 +32,10 @@ class QrCode:
         self.FindCellSize() # Find real cell size value
         self.cell_width = QR_CODE_WIDTH_BY_VERSION.get(self.version)
         self.cell_height = QR_CODE_WIDTH_BY_VERSION.get(self.version)
+        np.array()
 
     def __str__(self):
-        return f'QR Code Version {self.version} : Size: {self.width}x{self.height}' # Human readable version of qr code class, telling the version
+        return f'QR Code Version {self.version} : Size: {self.cell_width}x{self.cell_height}' # Human readable version of qr code class, telling the version
     
     def CellSizeApprox(self):
         # Cell size approximation
@@ -48,6 +50,18 @@ class QrCode:
             self.version = QR_CODE_VERSION_BY_WIDTH.get(int(sqrt(len(self.imData)) / self.cell_size))
     def FindCellSize(self): # Returns real cell size in pixels
         self.cell_size = (sqrt(len(self.imData))/QR_CODE_WIDTH_BY_VERSION.get(self.version))
+
+    def ReadQrData(self):
+        cell_pixel_length = self.cell_width/sqrt(len(self.imData)) # Assuming square cells 
+        
+        i = 0 # Value keeping track of which pixel coordinate we are in
+        j = 0 # Value keeping track of which cell coordinate we are in
+        
+        for i in range(self.cell_height):
+            for j in range(self.cell_width):
+                cell_values = self.imData[i+(j*cell_pixel_length*self.cell_width):i+(j*cell_pixel_length*self.cell_width)+cell_pixel_length]
+                
+            
 
 def QrRead(qrCode):
     pass
