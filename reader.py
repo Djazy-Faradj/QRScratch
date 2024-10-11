@@ -22,7 +22,10 @@ class QrCode:
     cellSize = None # Same than version except find cell size in pixels
     cellWidth = None
     cellHeight = None
-    qrData = None
+    qrData = None # Array of size MxN containing the 1s and 0s of the qr code
+    blacklistedCoordinates = [] # Array containing the (x,y) coordinates of the non-data values of qr code (i.e. format and version information)
+    errorCorrectionLevel = None
+    maskPattern = None
 
     def __init__(self, im): # QrCode class constructor
         self.im = im
@@ -35,10 +38,12 @@ class QrCode:
         self.cellHeight = QR_CODE_WIDTH_BY_VERSION.get(self.version)
 
         self.ReadQrData()
+        self.readFormatStrip()
+        self.generateBlacklist()
 
 
     def __str__(self):
-        return f'QR Code Version {self.version} : Size: {self.cellWidth}x{self.cellHeight}' # Human readable version of qr code class, telling the version
+        return f'QR Code Version {self.version} | Size: {self.cellWidth}x{self.cellHeight}\nError Correction Level: {self.errorCorrectionLevel} | Mask pattern: {self.maskPattern}' # Human readable version of qr code class, telling the version
     
     def CellSizeApprox(self):
         # Cell size approximation
@@ -65,6 +70,20 @@ class QrCode:
             else: self.qrData[i] = 1
         self.qrData.shape = (self.cellWidth, self.cellHeight) # Organizes the data arrays into qrData[row][column] coordinate value
 
+    def readFormatStrip(self): # Indicates level of error correction
+        formatErrorCorrection = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+        self.errorCorrectionLevel = tuple(self.qrData[8][0:2].tolist())
+        self.maskPattern = tuple(self.qrData[8][2:5].tolist())
+        formatErrorCorrection = np.ma.concatenate(self.qrData[8][5],(self.qrData[8][7:9]))
+        print(formatErrorCorrection)
+        ERROR_CORRECTION_LEVEL.get(self.errorCorrectionLevel) # For now, this only reads the format strip in the top left corner
+
+    def generateBlacklist(self):
+        pass
+
+        #self.blacklistedCoordinates = ...
+
             
 def QrRead(qrCodeData):
     print(qrCodeData)
@@ -81,7 +100,6 @@ def LoadQRImage(name, extension):
 def main():
     im = LoadQRImage("githublink", "png")
     qr = QrCode(im)
-    QrRead(qr.qrData)
-    
+    print(qr)
 
 main()
