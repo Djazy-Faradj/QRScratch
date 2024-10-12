@@ -37,3 +37,5 @@ You can run the script by executing:
 python reader.py
 ```
 It will load a sample QR code image (```sample_qr_codes/```) and output the extracted data along with some QR code information (version, error correction level, and mask pattern).
+
+---
