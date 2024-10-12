@@ -1,3 +1,5 @@
+from enum import Enum
+
 WHITE_THRESHOLD = 200 # Tells the program above what value would a pixel be considered "white"
 
 QR_CODE_VERSION_BY_WIDTH = {21: 1, 25: 2, 29: 3, 33: 4, 57: 10, 117: 25, 177: 40}
