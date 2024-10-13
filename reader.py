@@ -13,19 +13,18 @@ from math import sqrt
 from PIL import Image
 from PIL import ImageOps
 from PIL import ImageChops
+from util import *
 from constant import *
-import matplotlib.pyplot as plt
-
-qrCodeFolder = "sample_qr_codes/"
 
 class QrCode:
     version = None # FindVersion() will automatically determine and find the qrCode's version (1(21x21), 2(25x25), 3(29x29), 4(33x33), 10(57x57), 25(117x117), 40(177x177))
     cellSize = None # Same than version except find cell size in pixels
     cellLength = None
     qrData = None # Array of size MxN containing the 1s and 0s of the qr code
+    maskedQrData = None # Array of size MxN containing the 1s and 0s of the qr code following its masking
     blacklistedCoordinates = [] # Array containing the (x,y) coordinates of the non-data values of qr code (i.e. format and version information)
-    errorCorrectionLevel = None
-    maskPattern = None
+    errorCorrectionLevel = None # String value telling the qr code's error correction level ('Low', 'Medium', 'Quartile', 'High')
+    maskPattern = None # Integer value which represents a specific masking template for the qr code
 
     def __init__(self, im): # QrCode class constructor
         self.im = im
@@ -37,8 +36,9 @@ class QrCode:
         self.cellLength = QR_CODE_WIDTH_BY_VERSION.get(self.version)
         self.cellLength = QR_CODE_WIDTH_BY_VERSION.get(self.version)
 
-        self.ReadQrData()
+        self.ScanQrData()
         self.ReadFormatStrip()
+        self.ApplyMask()
 
 
     def __str__(self):
@@ -55,22 +55,51 @@ class QrCode:
         else:
             self.version = QR_CODE_VERSION_BY_WIDTH.get(int(sqrt(len(self.imData)) / self.cellSize))
     def FindCellSize(self): # Finds real cell size in pixels
-        self.cellSize = (sqrt(len(self.imData))/QR_CODE_WIDTH_BY_VERSION.get(self.version))
-                
-    def ReadQrData(self):
+        self.cellSize = (sqrt(len(self.imData))/QR_CODE_WIDTH_BY_VERSION.get(self.version))          
+    
+    # Kind of a sequential, step by step approach
+    def ScanQrData(self):
         wpercent = (self.cellLength / float(self.im.size[0])) 
         hsize = int((float(self.im.size[1]) * float(wpercent)))
         self.im = self.im.resize((self.cellLength, hsize), Image.Resampling.NEAREST) # Resizes qr image to appropriate resolution given qr version 
         self.imData = np.asarray(self.im.getdata()) # Converts resized image into a np array
-        self.qrData = np.zeros(self.cellLength*self.cellLength, int) # Sets the QrCode.qrData to contain an array of length MxN with value 0 for white and 1 for black
+        self.qrData = np.zeros(self.cellLength*self.cellLength, dtype=int) # Sets the QrCode.qrData to contain an array of length MxN with value 0 for white and 1 for black
         for i in range(len(self.imData)):
             if (self.imData[i] > WHITE_THRESHOLD): self.qrData[i] = 0 # Checks WHITE_THRESHOLD to determine whether to assign it as black or white value
             else: self.qrData[i] = 1
         self.qrData.shape = (self.cellLength, self.cellLength) # Organizes the data arrays into qrData[row][column] coordinate value
-
     def ReadFormatStrip(self): # Indicates level of error correction
-        self.errorCorrectionLevel = self.qrData[8][0:2].tolist()
-        self.maskPattern = tuple(self.qrData[8][2:5].tolist())
+        self.errorCorrectionLevel = ERROR_CORRECTION_LEVEL.get(tuple(self.qrData[8][0:2]))
+        self.maskPattern = MASK_TEMPLATE.get(tuple(self.qrData[8][2:5]))
+    def FormatStripCorrection(self):
+        pass
+    def ApplyMask(self): # Applies the mask defined in the format strip to the qr code
+        self.maskedQrData = self.qrData.copy()
+
+        if self.maskPattern == Mask.TEMPLATE0:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (row + col)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE1:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (row)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE2:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (col)%3 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE3:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (row + col)%3 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE4:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (row/2 + col/3)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE5:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (row*col)%2 + (row*col)%3 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE6:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (((row*col)%3)+(row*col))%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+        elif self.maskPattern == Mask.TEMPLATE7:
+            for row, col in np.ndindex(self.maskedQrData.shape):
+                if (((row*col)%3)+row+col)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
 
 def LoadQRImage(name, extension):
     with Image.open(qrCodeFolder + name + "." + extension) as im: # Creates an Image instance from qr code image and loads it as "im"
@@ -81,22 +110,9 @@ def LoadQRImage(name, extension):
         im = im.crop(invertIm.getbbox()) # Use those black borders detection to crop the qrCode image to only see code
         return im
 
-
-def visualizeQRCode(qr: QrCode): # For testing purposes, uses matplotlib to visualize qrCode data and generate it to be comparable to origin image.
-    N = qr.cellLength
-    Z = qr.qrData
-
-    G = np.zeros((N,N,3))
-
-    G[Z>0.5] = [0,0,0] # Sets RBG values to 0 so its black, vice-versa for white pixels..
-    G[Z<0.5] = [1,1,1]
-
-    plt.imshow(G,interpolation='nearest')
-    plt.show()
-
 def main():
     im = LoadQRImage("githublink", "png")
     qr = QrCode(im)
-    visualizeQRCode(qr)
+    print(qr)
 
 main()
