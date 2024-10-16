@@ -40,6 +40,6 @@ python reader.py
 It will load a sample QR code image (```sample_qr_codes/```) and output the extracted data along with some QR code information (version, error correction level, and mask pattern).
 
 ## Special Thanks
-This project could not have been possible if not for the incredible and extensive guide about QR Codes made by [Thonky](https://www.thonky.com/qr-code-tutorial/). Credits are also to [Veritasium's amazing video](https://www.youtube.com/watch?v=w5ebcowAJD8&t=1390s) regarding QR Codes which sparked the idea of making this project.
+This project could not have been possible if not for the incredible and extensive guide about QR Codes made by [Thonky](https://www.thonky.com/qr-code-tutorial/). Credits are also to [Veritasium's video](https://www.youtube.com/watch?v=w5ebcowAJD8&t=1390s) about QR Codes which sparked the idea to make this project.
 
 ---
