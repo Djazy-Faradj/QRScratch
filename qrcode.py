@@ -36,6 +36,7 @@ class QrCode:
         self.ScanQrData()
         self.ReadFormatStrip()
         self.ApplyMask()
+        self.GenerateBlacklist() 
 
     def CellSizeApprox(self): # Approximates cell size to first determine qr code version
         for i in range(len(self.imgData)): # Goes over first row of QR code, stops when a pixel is white and then divides the pixel in which it is by 7 to determine cell size
@@ -115,3 +116,8 @@ class QrCode:
         elif self.maskPattern == Mask.TEMPLATE7:
             for row, col in np.ndindex(self.maskedQrData.shape):
                 if (((row*col)%3)+row+col)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+
+    def GenerateBlacklist(self): # Will generate a blacklist of coordinates which contains non-data bits from qr code so that can be omitted when reading
+        if (self.version > 1):
+            #Find alignment patterns
+            pass
