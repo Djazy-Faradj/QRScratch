@@ -1,5 +1,6 @@
 # QR Code Reader (Work in Progress)
-This is a simple QR code reader that I’m developing as a personal challenge to avoid using any external QR code reading libraries. Instead, I’m using the Pillow library to handle image processing and reading the QR code manually by analyzing its structure and data.
+
+I’m creating this QR code reader as a personal challenge, deliberately avoiding the use of any external QR code libraries to make the project more challenging and fulfilling. Instead, I’m using the Pillow library to handle image processing and reading the QR code manually by analyzing its structure and data.
 
 ## Features
 * **Image Input:** Takes in a QR code image (currently a 'perfect' QR image).
