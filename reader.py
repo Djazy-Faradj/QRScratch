@@ -24,11 +24,11 @@ def LoadQRImage(name, extension) -> Image:
         return img
 
 def main():
-    img = LoadQRImage("big_qr_code", "png")
+    img = LoadQRImage("githublink", "png")
     qr = QrCode(img)
     qr.Read()
     print(qr) 
-    #VisualizeQRCode(qr)
-    #VisualizeMaskedQRCode(qr)
+    VisualizeQRCode(qr)
+    VisualizeMaskedQRCode(qr)
 
 main()

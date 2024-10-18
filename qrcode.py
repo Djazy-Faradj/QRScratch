@@ -35,8 +35,8 @@ class QrCode:
 
         self.ScanQrData()
         self.ReadFormatStrip()
-        self.ApplyMask()
         self.GenerateBlacklist() 
+        self.ApplyMask()
 
     def CellSizeApprox(self): # Approximates cell size to first determine qr code version
         for i in range(len(self.imgData)): # Goes over first row of QR code, stops when a pixel is white and then divides the pixel in which it is by 7 to determine cell size
@@ -83,41 +83,119 @@ class QrCode:
             hammingDistances.append(hammingDist)
         validSequenceIndex = hammingDistances.index(min(hammingDistances))
         self.formatStrip = tuple(map(int, VALID_FORMAT_BIT_SEQUENCES[validSequenceIndex]))
-        print(self.formatStrip)
         # After correcting format strip, then assign an error correction level and mask 
         self.errorCorrectionLevel = ERROR_CORRECTION_LEVEL.get(self.formatStrip[0:2])
         self.maskPattern = MASK_TEMPLATE.get(self.formatStrip[2:5])
 
+
+    def GenerateBlacklist(self): # Will generate a blacklist of coordinates which contains non-data bits from qr code so that can be omitted when reading
+        ### THIS SECTION TAKES CARE OF ALIGNMENT PATTERNS (Version 2 and above) ###
+        if (self.version > 1): 
+            minimum = min(ALIGNMENT_PATTERN_LOCATIONS.get(self.version))
+            maximum = max(ALIGNMENT_PATTERN_LOCATIONS.get(self.version))
+            alignmentPatternLocations = (
+                [(a, b) for idx, a in enumerate(ALIGNMENT_PATTERN_LOCATIONS.get(self.version)) for b in ALIGNMENT_PATTERN_LOCATIONS.get(self.version)[idx + 1:]] 
+                + [(b, a) for idx, a in enumerate(ALIGNMENT_PATTERN_LOCATIONS.get(self.version)) for b in ALIGNMENT_PATTERN_LOCATIONS.get(self.version)[idx + 1:]]
+                ) # Gets all the possible pair combinations possible
+            for coord in ALIGNMENT_PATTERN_LOCATIONS.get(self.version):
+                alignmentPatternLocations.append((coord, coord))
+            alignmentPatternLocations.append((maximum, maximum))
+            # Removes the aligment patterns that are overlapping the finder patterns
+            alignmentPatternLocations.remove((minimum, minimum))
+            alignmentPatternLocations.remove((minimum, maximum))
+            alignmentPatternLocations.remove((maximum, minimum))
+
+            # Get the coordinates of the cells forming the alignment patterns
+            for location in alignmentPatternLocations:
+                cell_coordinates = []
+                center_row = location[0]
+                center_col = location[1]
+                # Loop through the range -2 to 2 relative to the center point
+                for row_offset in range(-2, 3):
+                    for col_offset in range(-2, 3):
+                        # Calculate the actual row and coloumn for each point
+                        row = center_row + row_offset
+                        col = center_col + col_offset
+                        cell_coordinates.append((row, col))
+                self.blacklistedCoordinates += cell_coordinates # Add alignment pattern coordinates to blacklist
+        
+        ### Add Dark Module to blacklist ###
+        self.blacklistedCoordinates.append((self.length-8, 8))
+
+        ### THIS SECTION TAKES CARE OF FINDER PATTERNS AND SEPARATORS ###
+        for col_pos in range(8, self.length-8):                                     # Horizontal timing pattern
+            self.blacklistedCoordinates.append((6, col_pos))
+        for row_pos in range(8, self.length-8):                                     # Vertical timing pattern
+            self.blacklistedCoordinates.append((row_pos, 6))
+        
+        ### THIS SECTION TAKES CARE OF FINDER PATTERNS AND SEPARATORS ###
+        finderPatternLocations = [(3, 3), (self.length-4, 3), (3, self.length-4)]   # Top-left, Bottom-left, Top-right
+        for location in finderPatternLocations:
+            cell_coordinates = []
+            center_row = location[0]
+            center_col = location[1]
+            if location == (3, 3):                                                  # Top-left
+                # Loop through the range -2 to 2 relative to the center point
+                for row_offset in range(-3, 5):                                     # The extra offset takes care of the separators
+                    for col_offset in range(-3, 5):
+                        # Calculate the actual row and coloumn for each point
+                        row = center_row + row_offset
+                        col = center_col + col_offset
+                        cell_coordinates.append((row, col))
+                self.blacklistedCoordinates += cell_coordinates                     # Add alignment pattern coordinates to blacklist
+            elif location == (self.length-4, 3):                                    # Bottom-left
+                # Loop through the range -2 to 2 relative to the center point
+                for row_offset in range(-4, 4):
+                    for col_offset in range(-3, 5):
+                        # Calculate the actual row and coloumn for each point
+                        row = center_row + row_offset
+                        col = center_col + col_offset
+                        cell_coordinates.append((row, col))
+                self.blacklistedCoordinates += cell_coordinates                     # Add alignment pattern coordinates to blacklist
+            elif location == (3, self.length-4):                                    # Top-right
+                # Loop through the range -2 to 2 relative to the center point
+                for row_offset in range(-3, 5):
+                    for col_offset in range(-4, 4):
+                        # Calculate the actual row and coloumn for each point
+                        row = center_row + row_offset
+                        col = center_col + col_offset
+                        cell_coordinates.append((row, col))
+                self.blacklistedCoordinates += cell_coordinates                     # Add alignment pattern coordinates to blacklist
+
+        self.blacklistedCoordinates = list(set(self.blacklistedCoordinates))
 
     def ApplyMask(self): # Applies the mask defined in the format strip to the qr code
         self.maskedQrData = self.qrData.copy()
 
         if self.maskPattern == Mask.TEMPLATE0:
             for row, col in np.ndindex(self.maskedQrData.shape):
-                if (row + col)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+                if ((row, col) in self.blacklistedCoordinates): continue
+                if ((row + col)%2 == 0): self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE1:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (row)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE2:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (col)%3 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE3:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (row + col)%3 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE4:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (row/2 + col/3)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE5:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (row*col)%2 + (row*col)%3 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE6:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (((row*col)%3)+(row*col))%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
         elif self.maskPattern == Mask.TEMPLATE7:
             for row, col in np.ndindex(self.maskedQrData.shape):
+                if ((row, col) in self.blacklistedCoordinates): continue
                 if (((row*col)%3)+row+col)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
-
-    def GenerateBlacklist(self): # Will generate a blacklist of coordinates which contains non-data bits from qr code so that can be omitted when reading
-        if (self.version > 1):
-            #Find alignment patterns
-            pass
