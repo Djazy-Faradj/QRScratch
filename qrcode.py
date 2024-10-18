@@ -8,6 +8,7 @@ class QrCode:
     cellSize = None # Same than version except find cell size in pixels
     length = None # QR code length in cells
     qrData = None # Array of size MxN containing the 1s and 0s of the qr code
+    rawData = [] # Actual data bits of the relevant qr code info
     maskedQrData = None # Array of size MxN containing the 1s and 0s of the qr code following its masking
     blacklistedCoordinates = [] # Array containing the (x,y) coordinates of the non-data values of qr code (i.e. format and version information)
     formatStrip = []
@@ -37,6 +38,7 @@ class QrCode:
         self.ReadFormatStrip()
         self.GenerateBlacklist() 
         self.ApplyMask()
+        self.ScanRawData()
 
     def CellSizeApprox(self): # Approximates cell size to first determine qr code version
         for i in range(len(self.imgData)): # Goes over first row of QR code, stops when a pixel is white and then divides the pixel in which it is by 7 to determine cell size
@@ -51,7 +53,6 @@ class QrCode:
     def FindCellSize(self): # Finds real cell size in pixels
         self.cellSize = (sqrt(len(self.imgData))/QR_CODE_LENGTH_BY_VERSION.get(self.version))          
     
-
     def ScanQrData(self):
         wpercent = (self.length / float(self.img.size[0])) 
         hsize = int((float(self.img.size[1]) * float(wpercent)))
@@ -63,7 +64,6 @@ class QrCode:
             else: self.qrData[i] = 1
         self.qrData.shape = (self.length, self.length) # Organizes the data arrays into qrData[row][column] coordinate value
     
-
     def ReadFormatStrip(self): # Reads raw format strip which will be sent to formatStripCorrection() 
         self.formatStrip.extend(self.qrData[8][0:6].tolist())
         self.formatStrip.extend(self.qrData[8][7:9].tolist())
@@ -86,7 +86,6 @@ class QrCode:
         # After correcting format strip, then assign an error correction level and mask 
         self.errorCorrectionLevel = ERROR_CORRECTION_LEVEL.get(self.formatStrip[0:2])
         self.maskPattern = MASK_TEMPLATE.get(self.formatStrip[2:5])
-
 
     def GenerateBlacklist(self): # Will generate a blacklist of coordinates which contains non-data bits from qr code so that can be omitted when reading
         ### THIS SECTION TAKES CARE OF ALIGNMENT PATTERNS (Version 2 and above) ###
@@ -118,17 +117,14 @@ class QrCode:
                         col = center_col + col_offset
                         cell_coordinates.append((row, col))
                 self.blacklistedCoordinates += cell_coordinates # Add alignment pattern coordinates to blacklist
-        
-        ### Add Dark Module to blacklist ###
-        self.blacklistedCoordinates.append((self.length-8, 8))
 
-        ### THIS SECTION TAKES CARE OF FINDER PATTERNS AND SEPARATORS ###
+        ### THIS SECTION TAKES CARE OF TIMER PATTERNS ###
         for col_pos in range(8, self.length-8):                                     # Horizontal timing pattern
             self.blacklistedCoordinates.append((6, col_pos))
         for row_pos in range(8, self.length-8):                                     # Vertical timing pattern
             self.blacklistedCoordinates.append((row_pos, 6))
         
-        ### THIS SECTION TAKES CARE OF FINDER PATTERNS AND SEPARATORS ###
+        ### THIS SECTION TAKES CARE OF FINDER PATTERNS AND SEPARATORS AND FORMAT STRIP AND DARK MODULE ###
         finderPatternLocations = [(3, 3), (self.length-4, 3), (3, self.length-4)]   # Top-left, Bottom-left, Top-right
         for location in finderPatternLocations:
             cell_coordinates = []
@@ -136,8 +132,8 @@ class QrCode:
             center_col = location[1]
             if location == (3, 3):                                                  # Top-left
                 # Loop through the range -2 to 2 relative to the center point
-                for row_offset in range(-3, 5):                                     # The extra offset takes care of the separators
-                    for col_offset in range(-3, 5):
+                for row_offset in range(-3, 6):                                     # The extra offset takes care of the separators
+                    for col_offset in range(-3, 6):
                         # Calculate the actual row and coloumn for each point
                         row = center_row + row_offset
                         col = center_col + col_offset
@@ -146,7 +142,7 @@ class QrCode:
             elif location == (self.length-4, 3):                                    # Bottom-left
                 # Loop through the range -2 to 2 relative to the center point
                 for row_offset in range(-4, 4):
-                    for col_offset in range(-3, 5):
+                    for col_offset in range(-3, 6):
                         # Calculate the actual row and coloumn for each point
                         row = center_row + row_offset
                         col = center_col + col_offset
@@ -154,7 +150,7 @@ class QrCode:
                 self.blacklistedCoordinates += cell_coordinates                     # Add alignment pattern coordinates to blacklist
             elif location == (3, self.length-4):                                    # Top-right
                 # Loop through the range -2 to 2 relative to the center point
-                for row_offset in range(-3, 5):
+                for row_offset in range(-3, 6):
                     for col_offset in range(-4, 4):
                         # Calculate the actual row and coloumn for each point
                         row = center_row + row_offset
@@ -199,3 +195,24 @@ class QrCode:
             for row, col in np.ndindex(self.maskedQrData.shape):
                 if ((row, col) in self.blacklistedCoordinates): continue
                 if (((row*col)%3)+row+col)%2 == 0: self.maskedQrData[row, col] = (self.maskedQrData[row, col] + 1)%2
+
+    def ScanRawData(self):
+        starting_point = [self.length-1, self.length-1] # Bottom left corner
+        while (starting_point[1] >= 1):
+            for row_offset in range(0, self.length):    # Upward scanning
+                for col_offset in range(0, 2):
+                    if (starting_point[0]-row_offset, starting_point[1]-col_offset) not in self.blacklistedCoordinates:
+                        self.rawData.append(self.maskedQrData[starting_point[0]-row_offset][starting_point[1]-col_offset].item())
+            starting_point[0] = 0
+            starting_point[1] -= 2 
+            if (starting_point[1] == 6): starting_point[1] -= 1 # This condition skips the timing pattern column to avoid reading it
+            for row_offset in range(0, self.length):    # Downward scanning
+                for col_offset in range(0, 2):
+                    if (starting_point[0]+row_offset, starting_point[1]-col_offset) not in self.blacklistedCoordinates:
+                        self.rawData.append(self.maskedQrData[starting_point[0]+row_offset][starting_point[1]-col_offset].item())
+            starting_point[0] = self.length-1
+            starting_point[1] -= 2
+        print(self.rawData)
+        print(len(self.rawData))
+
+    

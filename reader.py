@@ -24,7 +24,7 @@ def LoadQRImage(name, extension) -> Image:
         return img
 
 def main():
-    img = LoadQRImage("githublink", "png")
+    img = LoadQRImage("57x57", "png")
     qr = QrCode(img)
     qr.Read()
     print(qr) 
