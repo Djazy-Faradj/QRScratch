@@ -4,7 +4,7 @@ Author: Djazy Faradj
 Created: 09-10-2024
 Last modified: 20-10-2024
 Description: Reader.py is a script which takes in an image of a qr code (for now, unaltered, 'perfect' qr image), manipulates it a little to then
-read each pixel of the code and automatically adapts to varying image sizes as it first calls a funciton CalculateCellSize() in which it will determine the size of
+read each pixel of the code and automatically adapts to varying image sizes as it first calls a function CalculateCellSize() in which it will determine the size of
 each cell inside that qr code image. From there, it will read the qr code line by line and will then be processed by the QrRead() function.
 """
 
@@ -16,15 +16,15 @@ from PIL import ImageOps        # Specific function used to better detect QR Cod
 
 def LoadQRImage(name, extension) -> Image:
     with Image.open(qrCodeFolder + name + "." + extension) as img: # Creates an Image instance from qr code image and loads it as "im"
-        newImg = Image.new("L", img.size, "WHITE") # Creates an image based on the one provided, removes alpha channel and turns it into white
-        newImg.paste(img, (0, 0), img)
-        img = newImg
-        invertImg = ImageOps.invert(img) # Invert colors to detect the white->black borders
-        img = img.crop(invertImg.getbbox()) # Use those black borders detection to crop the qrCode image to only see code
+        new_img = Image.new("L", img.size, "WHITE") # Creates an image based on the one provided, removes alpha channel and turns it into white
+        new_img.paste(img, (0, 0), img)
+        img = new_img
+        invert_img = ImageOps.invert(img) # Invert colors to detect the white->black borders
+        img = img.crop(invert_img.getbbox()) # Use those black borders detection to crop the qrCode image to only see code
         return img
 
 def main():
-    img = LoadQRImage("57x57", "png")
+    img = LoadQRImage("githublink", "png")
     qr = QrCode(img)
     qr.Read()
     print(qr) 
